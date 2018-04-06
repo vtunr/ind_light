@@ -48,7 +48,12 @@
 #include "aws_iot_version.h"
 #include "aws_iot_mqtt_client_interface.h"
 
+#include "cJSON.h"
+
 static const char *TAG = "subpub";
+
+
+#define TAG_LED "LED_CTRL"
 
 /* The examples use simple WiFi configuration that you can set via
    'make menuconfig'.
@@ -130,10 +135,21 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 
+void parse_mqtt_message(char* msg){
+    cJSON *root = cJSON_Parse(msg);
+    cJSON *format = cJSON_GetObjectItem(root,"l");
+    for (int i = 0 ; i < cJSON_GetArraySize(format) ; i++)
+    {
+        ESP_LOGI(TAG_LED, "Received color : %s",cJSON_GetArrayItem(format, i)->valuestring);
+    }
+    //ESP_LOGI(TAG_LED, "Received color : %s", format->valuestring)
+}
+
 void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
                                     IoT_Publish_Message_Params *params, void *pData) {
     ESP_LOGI(TAG, "Subscribe callback");
     ESP_LOGI(TAG, "%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char *)params->payload);
+    parse_mqtt_message(params->payload);
 }
 
 void disconnectCallbackHandler(AWS_IoT_Client *pClient, void *data) {
@@ -160,34 +176,48 @@ void disconnectCallbackHandler(AWS_IoT_Client *pClient, void *data) {
 typedef struct {
     uint8_t gpio;
     uint8_t brightness;
+    bool is_blink;
+    uint16_t blk_frequency;
     char* color;
+    char* id;
 } led_t;
 
 led_t red = {
-    .gpio = 25,
+    .gpio = 13,
     .brightness = 0,
-    .color = "RED"
+    .color = "RED",
+    .is_blink = false,
+    .blk_frequency = 0,
+    .id = "o"
 };
 
 
 led_t orange = {
-    .gpio = 26,
+    .gpio = 12,
     .brightness = 0,
-    .color = "ORANGE"
+    .color = "ORANGE",
+    .is_blink = false,
+    .blk_frequency = 0,
+    .id = "o"
 };
 
 led_t green = {
-    .gpio = 27,
+    .gpio = 14,
     .brightness = 0,
-    .color = "GREEN"
+    .color = "GREEN",
+    .is_blink = false,
+    .blk_frequency = 0,
+    .id = "g"
 };
 
-#define TAG_LED "LED_CTRL"
 
 void init_led(led_t *led){
     gpio_pad_select_gpio(led->gpio);
     /* Set the GPIO as a push/pull output */
     gpio_set_direction(led->gpio, GPIO_MODE_OUTPUT);
+
+    //0 : OFF, 1: ON
+    gpio_set_level(led->gpio, 0);
 }
 
 void change_led_status(led_t *led, uint8_t status){
@@ -214,6 +244,8 @@ void change_led_status(led_t *led, uint8_t status){
         return;
     }
 }
+
+
 
 void aws_iot_task(void *param) {
     char cPayload[100];
@@ -384,7 +416,9 @@ void app_main()
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK( err );
-
+    init_led(&red);
+    init_led(&orange);
+    init_led(&green);
     initialise_wifi();
     xTaskCreatePinnedToCore(&aws_iot_task, "aws_iot_task", 9216, NULL, 5, NULL, 1);
 }
