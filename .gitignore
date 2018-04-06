@@ -1,1 +1,6 @@
 build/
+*.pem
+*.cert
+*.key
+*.crt
+
