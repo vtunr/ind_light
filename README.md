@@ -22,5 +22,31 @@ Here choose:
 
 ```bash
 make flash
+```
+
+## Testing
+
+```bash
 make monitor
+```
+
+in a 2nd terminal
+
+Named animation
+
+```bash
+aws --region eu-west-1 lambda invoke \
+  --function-name indus_light_controller \
+  --payload '{"target":"poc","payload":{"anim":"red"}}' \
+  --invocation-type Event /tmp/lambda.out
+```
+
+Custom animation (here: red light on)
+
+
+```bash
+aws --region eu-west-1 lambda invoke \
+  --function-name indus_light_controller \
+  --payload '{"target":"poc","payload":{"custom_anim":{"l":["r"]}}}' \
+  --invocation-type Event /tmp/lambda.out
 ```
