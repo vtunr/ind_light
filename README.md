@@ -1,32 +1,26 @@
-# Amazon Web Services IoT MQTT Subscribe/Publish Example
+## Setup
 
+Derived from Amazon Web Services IoT MQTT Subscribe/Publish Example
 This is an adaptation of the [AWS IoT C SDK](https://github.com/aws/aws-iot-device-sdk-embedded-C) "subscribe_publish" example for ESP-IDF.
 
-# Configuration
+Put thing certificates (ID-pem\*) and root CA in `main/certs`. Rename them:
 
-See the README.md in the parent directory for information about configuring the AWS IoT examples.
+- remove `ID-` prefix
+- `mv root-ca.crt aws-root-ca.pem`
 
-# Monitoring MQTT Data from the device
+Compile project
 
-After flashing the example to your ESP32, it should connect to Amazon and start subscribing/publishing MQTT data.
+```bash
+cd ind_light
+make menuconfig
+```
 
-The example code publishes MQTT data to the topic `test_topic/esp32`. Amazon provides a web interface to subscribe to MQTT topics for testing:
+Here choose:
 
-* On the AWS IoT console, click "MQTT Client" near the top-right.
-* Click "Generate Client ID" to generate a random client ID.
-* Click "Connect"
+- _Component Config_ > _Amazon Web Services IoT Platform_ (dev thing endpoint should already be setup)
+- _Serial Flasher Config_ > _Default Serial Port_ (default is `/dev/ttyUSB0` for Linux)
 
-One connection succeeds, you can subscribe to the data published by the ESP32:
-
-* Click "Subscribe to Topic"
-* Enter "Subscription Topic" `test_topic/esp32`
-* Click "Subscribe"
-
-... you should see MQTT data published from the running example.
-
-To publish data back to the device:
-
-* Click "Publish to Topic"
-* Enter "Publish Topic" `test_topic/esp32`
-* Enter a message in the payload field
-* Click Publish
+```bash
+make flash
+make monitor
+```
