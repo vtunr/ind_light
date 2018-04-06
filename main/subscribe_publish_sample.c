@@ -113,7 +113,6 @@ char HostAddress[255] = AWS_IOT_MQTT_HOST;
  */
 uint32_t port = AWS_IOT_MQTT_PORT;
 
-
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
     switch(event->event_id) {
@@ -135,14 +134,112 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 
-void parse_mqtt_message(char* msg){
+/**
+ * LEDs management
+ */
+typedef struct {
+    uint8_t gpio;
+    uint8_t brightness;
+    bool is_blink;
+    uint16_t blk_frequency;
+    char* color;
+    char* id;
+} led_t;
+
+led_t red = {
+    .gpio = 13,
+    .brightness = 0,
+    .color = "RED",
+    .is_blink = false,
+    .blk_frequency = 0,
+    .id = "r"
+};
+
+led_t orange = {
+    .gpio = 12,
+    .brightness = 0,
+    .color = "ORANGE",
+    .is_blink = false,
+    .blk_frequency = 0,
+    .id = "o"
+};
+
+led_t green = {
+    .gpio = 14,
+    .brightness = 0,
+    .color = "GREEN",
+    .is_blink = false,
+    .blk_frequency = 0,
+    .id = "g"
+};
+
+void init_led(led_t *led){
+    gpio_pad_select_gpio(led->gpio);
+    /* Set the GPIO as a push/pull output */
+    gpio_set_direction(led->gpio, GPIO_MODE_OUTPUT);
+
+    //0 : OFF, 1: ON
+    gpio_set_level(led->gpio, 0);
+}
+
+void change_led_status(led_t *led, uint8_t status){
+    
+    ESP_LOGI(TAG_LED, "changing led %s status to %d", led->id, status);
+
+    if(led->brightness == status){
+        ESP_LOGI(TAG_LED,"%s already in this status", led->color);
+        return;
+    }
+    if (status > 100){
+        ESP_LOGE(TAG_LED, "%s : Status not supported yet", led->color);
+        return;
+    }
+    
+    led->brightness = status;
+    ESP_LOGI(TAG_LED, "Switching %s to %u",led->color, led->brightness);
+    
+    if (status == 0){
+        gpio_set_level(led->gpio, 0);
+        return;
+    }
+    if (status == 100){
+        gpio_set_level(led->gpio, 1);
+        return;
+    }
+}
+
+led_t* get_led(char* ledStr) {
+    
+    if (strcmp(ledStr,"g") == 0)
+        return &green;
+    if (strcmp(ledStr,"o") == 0)
+        return &orange;
+    if (strcmp(ledStr,"r") == 0)
+        return &red;
+    else {
+        ESP_LOGE(TAG, "invalid color in message : %s => skipping", ledStr);
+        abort();
+    }
+}
+
+void parse_mqtt_message(char* msg) {
+
     cJSON *root = cJSON_Parse(msg);
     cJSON *format = cJSON_GetObjectItem(root,"l");
+    
+    // reset all lights
+    change_led_status(&green, 0);
+    change_led_status(&orange, 0);
+    change_led_status(&red, 0);
+    
+    // render
     for (int i = 0 ; i < cJSON_GetArraySize(format) ; i++)
     {
-        ESP_LOGI(TAG_LED, "Received color : %s",cJSON_GetArrayItem(format, i)->valuestring);
+        ESP_LOGI(TAG_LED, "Received color : %s", cJSON_GetArrayItem(format, i)->valuestring);
+        char* color = cJSON_GetArrayItem(format, i)->valuestring;
+        led_t* led = get_led(color);
+        change_led_status(led, 100);
     }
-    //ESP_LOGI(TAG_LED, "Received color : %s", format->valuestring)
 }
 
 void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
@@ -172,80 +269,6 @@ void disconnectCallbackHandler(AWS_IoT_Client *pClient, void *data) {
         }
     }
 }
-
-typedef struct {
-    uint8_t gpio;
-    uint8_t brightness;
-    bool is_blink;
-    uint16_t blk_frequency;
-    char* color;
-    char* id;
-} led_t;
-
-led_t red = {
-    .gpio = 13,
-    .brightness = 0,
-    .color = "RED",
-    .is_blink = false,
-    .blk_frequency = 0,
-    .id = "o"
-};
-
-
-led_t orange = {
-    .gpio = 12,
-    .brightness = 0,
-    .color = "ORANGE",
-    .is_blink = false,
-    .blk_frequency = 0,
-    .id = "o"
-};
-
-led_t green = {
-    .gpio = 14,
-    .brightness = 0,
-    .color = "GREEN",
-    .is_blink = false,
-    .blk_frequency = 0,
-    .id = "g"
-};
-
-
-void init_led(led_t *led){
-    gpio_pad_select_gpio(led->gpio);
-    /* Set the GPIO as a push/pull output */
-    gpio_set_direction(led->gpio, GPIO_MODE_OUTPUT);
-
-    //0 : OFF, 1: ON
-    gpio_set_level(led->gpio, 0);
-}
-
-void change_led_status(led_t *led, uint8_t status){
-    if(status>100){
-        ESP_LOGE(TAG_LED, "Unexpected status");
-        return;
-    } 
-    if(led->brightness == status){
-        ESP_LOGI(TAG_LED,"%s already in this status", led->color);
-        return;
-    }
-    if(status != 0 || status != 100){
-        ESP_LOGE(TAG_LED, "%s : Status not supported yet", led->color);
-        return;
-    }
-    led->brightness = status;
-    ESP_LOGI(TAG_LED, "Switching %s to %u",led->color, led->brightness);
-    if(status == 0){
-        gpio_set_level(led->gpio, 0);
-        return;
-    }
-    if(status == 100){
-        gpio_set_level(led->gpio, 1);
-        return;
-    }
-}
-
-
 
 void aws_iot_task(void *param) {
     char cPayload[100];
